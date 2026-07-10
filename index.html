@@ -100,12 +100,38 @@
   .leader-banner .name{font-family:'Baloo 2';font-size:1.3rem;font-weight:700;}
   .leader-banner .sub{font-size:0.8rem;font-weight:700;opacity:0.85;}
 
-  .match-card{border:2.5px dashed var(--ink);border-radius:12px;padding:12px;margin-bottom:10px;background:#fffdf7;}
+  .match-card{
+    border:2.5px solid var(--ink); border-left-width:9px; border-radius:12px;
+    padding:12px; margin-bottom:14px; background:#fffdf7; position:relative;
+    transition: transform 0.15s ease;
+  }
+  .match-card.status-abierto{border-left-color:var(--sky); background:#EEFBFD;}
+  .match-card.status-cerrado{border-left-color:#4a4a4a; background:#F1F1EF;}
+  .match-card.status-finalizado{border-left-color:var(--grass); background:#EEFAF0;}
+  .match-card.status-ref{border-left-color:#bbb; background:#F7F7F4;}
+  .match-card.is-next{
+    box-shadow: 0 0 0 3px var(--sun), var(--shadow);
+    animation: nextGlow 1.8s ease-in-out infinite;
+  }
+  @keyframes nextGlow{
+    0%,100%{ box-shadow: 0 0 0 3px var(--sun), 4px 4px 0px var(--ink); }
+    50%{ box-shadow: 0 0 10px 3px var(--sun), 4px 4px 0px var(--ink); }
+  }
+  .next-badge{
+    position:absolute; top:-12px; right:10px; font-family:'Baloo 2'; font-size:0.7rem;
+    background:var(--sun); border:2.5px solid var(--ink); border-radius:20px; padding:2px 10px;
+  }
+  .ticket-divider{ height:0; border-top:2.5px dashed #c9c9c0; margin:10px 0 8px; }
+  .flag-chip{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:34px; height:24px; border-radius:5px; border:2px solid var(--ink);
+    box-shadow:1px 1px 0 rgba(0,0,0,0.18); font-size:0.85rem;
+  }
   .match-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:4px;}
   .match-teams{display:flex;align-items:center;justify-content:center;gap:14px;font-size:1.3rem;font-family:'Baloo 2';}
   .match-teams .vs{font-size:0.78rem;background:var(--ink);color:white;padding:2px 8px;border-radius:8px;}
   .match-teams .team{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:84px;}
-  .match-teams .flag{font-size:1.7rem;}
+  .match-teams .flag{display:inline-flex;}
   .match-teams .tname{font-size:0.75rem;font-family:'Nunito';font-weight:800;}
   .match-score{font-size:1.5rem;font-weight:800;color:var(--coral);}
   .match-date{font-size:0.72rem;text-align:center;opacity:0.7;font-weight:700;margin-top:4px;}
@@ -192,7 +218,7 @@
     .name-btn{font-size:0.95rem;padding:14px 8px;}
     .match-teams{gap:6px;font-size:1.05rem;}
     .match-teams .team{min-width:0;flex:1;}
-    .match-teams .flag{font-size:1.4rem;}
+    .flag-chip{width:28px;height:20px;}
     .match-teams .tname{font-size:0.66rem;}
     .match-score{font-size:1.15rem;}
     .row{gap:8px;}
@@ -384,6 +410,40 @@ function predFor(matchId, name){
   return predictionsCache.find(p=>p.match_id===matchId && p.participant_name===name);
 }
 
+const FLAG_COLORS = {
+  "Francia":     {c:['#0055A4','#FFFFFF','#EF4135'], dir:'v'},
+  "Marruecos":   {c:['#C1272D','#006233'], dir:'v'},
+  "España":      {c:['#AA151B','#F1BF00','#AA151B'], dir:'h'},
+  "Bélgica":     {c:['#000000','#FAE042','#ED2939'], dir:'v'},
+  "Noruega":     {c:['#EF2B2D','#FFFFFF','#002868'], dir:'h'},
+  "Inglaterra":  {c:['#FFFFFF','#CE1124'], dir:'h'},
+  "Argentina":   {c:['#75AADB','#FFFFFF','#75AADB'], dir:'h'},
+  "Suiza":       {c:['#FF0000','#FF0000'], dir:'v'},
+  "Por definir": {c:['#D8D8D8','#C2C2C2'], dir:'v'}
+};
+function flagChip(name){
+  const cfg = FLAG_COLORS[name] || {c:['#AAAAAA','#888888'], dir:'v'};
+  const dir = cfg.dir==='v' ? 'to right' : 'to bottom';
+  const n = cfg.c.length;
+  const stops = cfg.c.map((col,i)=> `${col} ${Math.round(i/n*100)}%, ${col} ${Math.round((i+1)/n*100)}%`).join(', ');
+  const mark = name==='Por definir' ? '❔' : '';
+  return `<span class="flag-chip" style="background:linear-gradient(${dir}, ${stops});">${mark}</span>`;
+}
+function matchStatus(m){
+  const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
+  if(m.is_reference) return hasResult ? 'finalizado' : 'ref';
+  if(hasResult) return 'finalizado';
+  if(isLocked(m)) return 'cerrado';
+  return 'abierto';
+}
+const STATUS_LABEL = {ref:'Referencia', finalizado:'Finalizado', cerrado:'Cerrado', abierto:'Abierto'};
+function getNextMatchId(){
+  const upcoming = matchesCache
+    .filter(m=> m.scores_flag && !m.is_reference && m.lock_at && matchStatus(m)==='abierto')
+    .sort((a,b)=> new Date(a.lock_at) - new Date(b.lock_at));
+  return upcoming.length ? upcoming[0].id : null;
+}
+
 /* ============ LOAD DATA ============ */
 async function loadAll(){
   const [partsRes, matchesRes, predsRes] = await Promise.all([
@@ -571,22 +631,23 @@ function renderInicio(){
     </div>`;
 
   const cont = document.getElementById('inicioMatches');
+  const nextId = getNextMatchId();
   cont.innerHTML = matchesCache.map(m=>{
     const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
-    let status, cls;
-    if(m.is_reference){ status="Referencia (no puntúa)"; cls="ref"; }
-    else if(hasResult){ status="Finalizado"; cls="finalizado"; }
-    else if(isLocked(m)){ status="Cerrado"; cls="cerrado"; }
-    else { status="Abierto"; cls="abierto"; }
+    const cls = matchStatus(m);
+    const status = m.is_reference ? 'Referencia (no puntúa)' : STATUS_LABEL[cls];
     const scoreText = hasResult ? `${m.result_home_score} - ${m.result_away_score}${m.result_penalty_winner? ' (pen. '+(m.result_penalty_winner==='home'?m.home_name:m.away_name)+')':''}` : null;
+    const isNext = m.id === nextId;
     return `
-    <div class="match-card">
+    <div class="match-card status-${cls} ${isNext?'is-next':''}">
+      ${isNext ? '<span class="next-badge">🔥 Próximo</span>' : ''}
       <div class="match-top"><span class="pill">${m.stage}</span><span class="pill ${cls}">${status}</span></div>
       <div class="match-teams">
-        <div class="team"><span class="flag">${m.home_flag}</span><span class="tname">${m.home_name}</span></div>
+        <div class="team">${flagChip(m.home_name)}<span class="tname">${m.home_name}</span></div>
         <div class="match-score">${scoreText || '<span class="vs">VS</span>'}</div>
-        <div class="team"><span class="flag">${m.away_flag}</span><span class="tname">${m.away_name}</span></div>
+        <div class="team">${flagChip(m.away_name)}<span class="tname">${m.away_name}</span></div>
       </div>
+      <div class="ticket-divider"></div>
       <div class="match-date">${m.match_label||''}</div>
     </div>`;
   }).join('');
@@ -623,12 +684,14 @@ function renderBracket(){
       ${ms.map(m=>{
         const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
         const scoreText = hasResult ? `${m.result_home_score} - ${m.result_away_score}` : 'vs';
-        return `<div class="match-card">
+        const cls = matchStatus(m);
+        return `<div class="match-card status-${cls}">
           <div class="match-teams">
-            <div class="team"><span class="flag">${m.home_flag}</span><span class="tname">${m.home_name}</span></div>
+            <div class="team">${flagChip(m.home_name)}<span class="tname">${m.home_name}</span></div>
             <div class="match-score" style="font-size:1rem;">${scoreText}</div>
-            <div class="team"><span class="flag">${m.away_flag}</span><span class="tname">${m.away_name}</span></div>
+            <div class="team">${flagChip(m.away_name)}<span class="tname">${m.away_name}</span></div>
           </div>
+          <div class="ticket-divider"></div>
           <div class="match-date">${m.match_label||''}</div>
         </div>`;
       }).join('')}
@@ -679,17 +742,21 @@ function renderPartidos(){
       `;
     }
 
+    const cls = matchStatus(m);
+    const isNext = m.id === getNextMatchId();
     return `
-    <div class="match-card">
+    <div class="match-card status-${cls} ${isNext?'is-next':''}">
+      ${isNext ? '<span class="next-badge">🔥 Próximo</span>' : ''}
       <div class="match-top">
         <span class="pill">${m.stage}</span>
-        <span class="pill ${hasResult?'finalizado':(locked?'cerrado':'abierto')}">${hasResult?'Finalizado':(locked?'Cerrado':'Abierto')}</span>
+        <span class="pill ${cls}">${STATUS_LABEL[cls]}</span>
       </div>
       <div class="match-teams">
-        <div class="team"><span class="flag">${m.home_flag}</span><span class="tname">${m.home_name}</span></div>
+        <div class="team">${flagChip(m.home_name)}<span class="tname">${m.home_name}</span></div>
         <div class="match-score">${hasResult ? m.result_home_score+' - '+m.result_away_score : '<span class="vs">VS</span>'}</div>
-        <div class="team"><span class="flag">${m.away_flag}</span><span class="tname">${m.away_name}</span></div>
+        <div class="team">${flagChip(m.away_name)}<span class="tname">${m.away_name}</span></div>
       </div>
+      <div class="ticket-divider"></div>
       <div class="match-date">${m.match_label||''} ${m.lock_at?('· Cierra: '+new Date(m.lock_at).toLocaleString('es-PE',{dateStyle:'short',timeStyle:'short'})):''}</div>
       ${body}
     </div>`;
@@ -764,7 +831,7 @@ function renderAdmin(){
     const lockVal = m.lock_at ? new Date(m.lock_at).toISOString().slice(0,16) : '';
     return `
     <div class="match-card">
-      <h3>${m.home_flag} ${m.home_name} vs ${m.away_name} ${m.away_flag}</h3>
+      <h3>${flagChip(m.home_name)} ${m.home_name} vs ${m.away_name} ${flagChip(m.away_name)}</h3>
       ${m.is_reference ? '' : `
       <label>Fecha y hora de cierre de predicciones (hora Perú)</label>
       <div class="row">
