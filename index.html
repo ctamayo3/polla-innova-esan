@@ -759,17 +759,19 @@ function renderTabla(){
 function renderAdmin(){
   if(!session.isAdmin) return;
   const cont = document.getElementById('adminMatchesContainer');
-  cont.innerHTML = matchesCache.filter(m=>m.scores_flag).map(m=>{
+  cont.innerHTML = matchesCache.map(m=>{
     const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
     const lockVal = m.lock_at ? new Date(m.lock_at).toISOString().slice(0,16) : '';
     return `
     <div class="match-card">
       <h3>${m.home_flag} ${m.home_name} vs ${m.away_name} ${m.away_flag}</h3>
+      ${m.is_reference ? '' : `
       <label>Fecha y hora de cierre de predicciones (hora Perú)</label>
       <div class="row">
         <input type="datetime-local" id="lock-${m.id}" value="${lockVal}">
         <button class="btn secondary small" onclick="saveLockTime('${m.id}')">Guardar cierre</button>
       </div>
+      `}
       <label style="margin-top:12px;">Resultado real</label>
       <div class="row">
         <div><label>${m.home_name}</label><input type="number" min="0" class="score-input" id="res-home-${m.id}" value="${hasResult?m.result_home_score:''}"></div>
