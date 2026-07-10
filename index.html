@@ -399,6 +399,10 @@ async function hashPin(name, pin){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 function getMatch(id){ return matchesCache.find(m=>m.id===id); }
+function toLocalInputValue(dateObj){
+  const pad = n => String(n).padStart(2,'0');
+  return `${dateObj.getFullYear()}-${pad(dateObj.getMonth()+1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+}
 function isLocked(match){
   if(!match.lock_at) return false; // sin hora definida = abierto
   return new Date() >= new Date(match.lock_at);
@@ -828,7 +832,7 @@ function renderAdmin(){
   const cont = document.getElementById('adminMatchesContainer');
   cont.innerHTML = matchesCache.map(m=>{
     const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
-    const lockVal = m.lock_at ? new Date(m.lock_at).toISOString().slice(0,16) : '';
+    const lockVal = m.lock_at ? toLocalInputValue(new Date(m.lock_at)) : '';
     return `
     <div class="match-card">
       <h3>${flagChip(m.home_name)} ${m.home_name} vs ${m.away_name} ${flagChip(m.away_name)}</h3>
