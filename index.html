@@ -287,8 +287,7 @@
   </div>
 
   <nav class="tabs" id="mainTabs">
-    <button data-view="inicio" class="active">🏠 Inicio</button>
-    <button data-view="bracket">🗂️ Bracket</button>
+    <button data-view="bracket" class="active">🗂️ Bracket</button>
     <button data-view="partidos">⚽ Partidos</button>
     <button data-view="tabla">📊 Tabla</button>
     <button data-view="comofunciona">❓ Puntos</button>
@@ -297,15 +296,8 @@
 
   <div class="wrap">
 
-    <section class="view active" id="view-inicio">
+    <section class="view active" id="view-bracket">
       <div id="leaderBanner"></div>
-      <div class="card">
-        <h2>📋 Estado de los partidos</h2>
-        <div id="inicioMatches"></div>
-      </div>
-    </section>
-
-    <section class="view" id="view-bracket">
       <div class="card">
         <h2>🗂️ Cuadro del torneo</h2>
         <div class="notice">🇫🇷 Francia vs 🇲🇦 Marruecos ya se jugó y no puntúa — se muestra solo como referencia.</div>
@@ -620,44 +612,7 @@ function computeLeaderboard(){
 }
 
 /* ============ RENDER: INICIO ============ */
-function renderInicio(){
-  const board = computeLeaderboard();
-  const leaderDiv = document.getElementById('leaderBanner');
-  const anyPlayed = board.some(b=>b.points>0);
-  leaderDiv.innerHTML = anyPlayed ? `
-    <div class="leader-banner">
-      <div class="trophy">🥇</div>
-      <div><div class="name">${board[0].name}</div><div class="sub">Va en la punta con ${board[0].points} puntos</div></div>
-    </div>` : `
-    <div class="leader-banner" style="background:var(--sun);">
-      <div class="trophy">⚽</div>
-      <div><div class="name">¡Que empiece la Polla!</div><div class="sub">Aún no hay resultados cargados</div></div>
-    </div>`;
-
-  const cont = document.getElementById('inicioMatches');
-  const nextId = getNextMatchId();
-  cont.innerHTML = matchesCache.map(m=>{
-    const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
-    const cls = matchStatus(m);
-    const status = m.is_reference ? 'Referencia (no puntúa)' : STATUS_LABEL[cls];
-    const scoreText = hasResult ? `${m.result_home_score} - ${m.result_away_score}${m.result_penalty_winner? ' (pen. '+(m.result_penalty_winner==='home'?m.home_name:m.away_name)+')':''}` : null;
-    const isNext = m.id === nextId;
-    return `
-    <div class="match-card status-${cls} ${isNext?'is-next':''}">
-      ${isNext ? '<span class="next-badge">🔥 Próximo</span>' : ''}
-      <div class="match-top"><span class="pill">${m.stage}</span><span class="pill ${cls}">${status}</span></div>
-      <div class="match-teams">
-        <div class="team">${flagChip(m.home_name)}<span class="tname">${m.home_name}</span></div>
-        <div class="match-score">${scoreText || '<span class="vs">VS</span>'}</div>
-        <div class="team">${flagChip(m.away_name)}<span class="tname">${m.away_name}</span></div>
-      </div>
-      <div class="ticket-divider"></div>
-      <div class="match-date">${m.match_label||''}</div>
-    </div>`;
-  }).join('');
-}
-
-/* ============ RENDER: BRACKET ============ */
+/* ============ RENDER: BRACKET (incluye banner de líder) ============ */
 function refreshBracketTeams(){
   matchesCache.forEach(m=>{
     ['home','away'].forEach(side=>{
@@ -678,6 +633,21 @@ function refreshBracketTeams(){
 }
 function renderBracket(){
   refreshBracketTeams();
+
+  const board = computeLeaderboard();
+  const leaderDiv = document.getElementById('leaderBanner');
+  const anyPlayed = board.some(b=>b.points>0);
+  leaderDiv.innerHTML = anyPlayed ? `
+    <div class="leader-banner">
+      <div class="trophy">🥇</div>
+      <div><div class="name">${board[0].name}</div><div class="sub">Va en la punta con ${board[0].points} puntos</div></div>
+    </div>` : `
+    <div class="leader-banner" style="background:var(--sun);">
+      <div class="trophy">⚽</div>
+      <div><div class="name">¡Que empiece la Polla!</div><div class="sub">Aún no hay resultados cargados</div></div>
+    </div>`;
+
+  const nextId = getNextMatchId();
   const stages = ["Referencia","Cuartos de Final","Semifinal","Final"];
   const cont = document.getElementById('bracketContainer');
   cont.innerHTML = stages.map(stage=>{
@@ -689,7 +659,9 @@ function renderBracket(){
         const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
         const scoreText = hasResult ? `${m.result_home_score} - ${m.result_away_score}` : 'vs';
         const cls = matchStatus(m);
-        return `<div class="match-card status-${cls}">
+        const isNext = m.id === nextId;
+        return `<div class="match-card status-${cls} ${isNext?'is-next':''}">
+          ${isNext ? '<span class="next-badge">🔥 Próximo</span>' : ''}
           <div class="match-teams">
             <div class="team">${flagChip(m.home_name)}<span class="tname">${m.home_name}</span></div>
             <div class="match-score" style="font-size:1rem;">${scoreText}</div>
@@ -902,7 +874,6 @@ async function resetParticipantPin(){
 function renderAll(){
   if(!session) return;
   refreshBracketTeams();
-  renderInicio();
   renderBracket();
   renderPartidos();
   renderTabla();
