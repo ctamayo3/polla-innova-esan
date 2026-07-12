@@ -81,7 +81,11 @@
   nav.tabs button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink);}
   #topBar{display:flex;justify-content:space-between;align-items:center;max-width:720px;margin:8px auto 0;padding:0 16px;}
   #userChip{font-family:'Baloo 2';font-size:0.85rem;background:var(--sky);border:2.5px solid var(--ink);border-radius:20px;padding:4px 12px;}
-  #logoutBtn{font-size:0.75rem;font-weight:800;border:none;background:none;color:var(--ink);text-decoration:underline;cursor:pointer;}
+  #logoutBtn, #editProfileBtn{font-size:0.75rem;font-weight:800;border:none;background:none;color:var(--ink);text-decoration:underline;cursor:pointer;}
+  .profile-field{text-align:left;}
+  .profile-field label{margin:10px 0 4px;}
+  .profile-field input{width:100%;font-family:'Nunito';font-weight:700;border:2.5px solid var(--ink);border-radius:10px;padding:8px 10px;font-size:0.9rem;}
+  #profileEmojiInput{font-size:1.4rem;text-align:center;}
 
   section.view{display:none;} section.view.active{display:block;}
   .card{background:var(--card);border:3px solid var(--ink);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:16px;}
@@ -274,6 +278,26 @@
   </div>
 </div>
 
+<!-- ========== PROFILE MODAL ========== -->
+<div id="profileModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="profileModalTitle">Editar mi perfil</h3>
+    <p id="profileModalSubtitle" class="small-muted" style="display:none;">Personaliza cómo te van a ver los demás: tu nombre y tu emoji, en la pantalla de inicio y dentro de la app.</p>
+    <div class="profile-field">
+      <label>Nombre para mostrar</label>
+      <input type="text" id="profileNameInput" maxlength="20" placeholder="Tu nombre">
+    </div>
+    <div class="profile-field">
+      <label>Tu emoji</label>
+      <input type="text" id="profileEmojiInput" maxlength="8" placeholder="🙋">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
+      <button class="btn small" onclick="saveProfile()">💾 Guardar</button>
+      <button class="btn secondary small" id="profileDismissBtn" onclick="closeProfileModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ========== MAIN APP ========== -->
 <div id="appScreen" style="display:none;">
   <header class="top">
@@ -283,7 +307,10 @@
   </header>
   <div id="topBar">
     <span id="userChip"></span>
-    <button id="logoutBtn" onclick="logout()">Cerrar sesión</button>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <button id="editProfileBtn" onclick="openProfileModal(false)">✏️ Editar perfil</button>
+      <button id="logoutBtn" onclick="logout()">Cerrar sesión</button>
+    </div>
   </div>
 
   <nav class="tabs" id="mainTabs">
@@ -378,6 +405,7 @@ let pinBuffer = "";
 let pinMode = null; // 'create' | 'confirm' | 'login'
 let pinFirstEntry = "";
 let pinTargetName = "";
+let profileModalFirstTime = false;
 
 /* ============ UTIL ============ */
 function toast(msg){
@@ -391,6 +419,14 @@ async function hashPin(name, pin){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 function getMatch(id){ return matchesCache.find(m=>m.id===id); }
+function getParticipant(name){ return participantsCache.find(p=>p.name===name); }
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function rawDisplayName(name){ const p = getParticipant(name); return (p && p.display_name) ? p.display_name : name; }
+function rawAvatarEmoji(name){ const p = getParticipant(name); return p ? (p.avatar_emoji || (p.is_admin?'👑':'🙋')) : '🙋'; }
+function displayName(name){ return escapeHtml(rawDisplayName(name)); }
+function avatarEmoji(name){ return escapeHtml(rawAvatarEmoji(name)); }
 function toLocalInputValue(dateObj){
   const pad = n => String(n).padStart(2,'0');
   return `${dateObj.getFullYear()}-${pad(dateObj.getMonth()+1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
@@ -462,7 +498,7 @@ function renderNameGrid(){
   const grid = document.getElementById('nameGrid');
   grid.innerHTML = participantsCache.map(p=>`
     <button class="name-btn ${p.is_admin?'admin-tag':''}" onclick="onNameClick('${p.name}')">
-      <span class="avatar">${p.is_admin?'👑':'🙋'}</span>${p.name}
+      <span class="avatar">${avatarEmoji(p.name)}</span>${displayName(p.name)}
     </button>
   `).join('');
 }
@@ -555,13 +591,48 @@ function logout(){
   document.getElementById('loginScreen').style.display='block';
 }
 
+/* ============ PROFILE MODAL (nombre + emoji personalizados) ============ */
+function openProfileModal(isFirstTime){
+  profileModalFirstTime = isFirstTime;
+  document.getElementById('profileModalTitle').textContent = isFirstTime
+    ? '¡Bienvenido/a, ' + session.name + '!'
+    : 'Editar mi perfil';
+  document.getElementById('profileModalSubtitle').style.display = isFirstTime ? 'block' : 'none';
+  document.getElementById('profileNameInput').value = rawDisplayName(session.name);
+  document.getElementById('profileEmojiInput').value = rawAvatarEmoji(session.name);
+  document.getElementById('profileDismissBtn').textContent = isFirstTime ? 'Ahora no' : 'Cancelar';
+  document.getElementById('profileModal').style.display = 'flex';
+}
+async function closeProfileModal(){
+  document.getElementById('profileModal').style.display = 'none';
+  if(profileModalFirstTime){
+    await sb.from('participants').update({ profile_prompted: true }).eq('name', session.name);
+    await loadAll();
+  }
+}
+async function saveProfile(){
+  const name = document.getElementById('profileNameInput').value.trim();
+  const emoji = document.getElementById('profileEmojiInput').value.trim();
+  if(!name){ toast('Ponle un nombre'); return; }
+  await sb.from('participants').update({
+    display_name: name, avatar_emoji: emoji || null, profile_prompted: true
+  }).eq('name', session.name);
+  await loadAll();
+  document.getElementById('profileModal').style.display = 'none';
+  document.getElementById('userChip').textContent = rawAvatarEmoji(session.name) + ' ' + rawDisplayName(session.name);
+  renderAll();
+  toast('Perfil actualizado ✅');
+}
+
 /* ============ APP SHELL ============ */
 function showApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').style.display='block';
-  document.getElementById('userChip').textContent = (session.isAdmin?'👑 ':'🙋 ') + session.name;
+  document.getElementById('userChip').textContent = rawAvatarEmoji(session.name) + ' ' + rawDisplayName(session.name);
   document.getElementById('adminTabBtn').style.display = session.isAdmin ? 'inline-block' : 'none';
   renderAll();
+  const p = getParticipant(session.name);
+  if(p && !p.profile_prompted){ openProfileModal(true); }
 }
 
 document.getElementById('mainTabs').addEventListener('click', (e)=>{
@@ -640,7 +711,7 @@ function renderBracket(){
   leaderDiv.innerHTML = anyPlayed ? `
     <div class="leader-banner">
       <div class="trophy">🥇</div>
-      <div><div class="name">${board[0].name}</div><div class="sub">Va en la punta con ${board[0].points} puntos</div></div>
+      <div><div class="name">${avatarEmoji(board[0].name)} ${displayName(board[0].name)}</div><div class="sub">Va en la punta con ${board[0].points} puntos</div></div>
     </div>` : `
     <div class="leader-banner" style="background:var(--sun);">
       <div class="trophy">⚽</div>
@@ -712,7 +783,7 @@ function renderPartidos(){
             const pr = predFor(m.id, name);
             const txt = pr ? `${pr.home_score}-${pr.away_score}${pr.penalty_winner?' (pen: '+(pr.penalty_winner==='home'?m.home_name:m.away_name)+')':''}` : 'sin predicción';
             const ptsTxt = hasResult && mp[name] ? ` · ${mp[name].points} pts` : '';
-            return `<div class="op-row"><span>${name}${name===session.name?' (tú)':''}</span><span>${txt}${ptsTxt}</span></div>`;
+            return `<div class="op-row"><span>${avatarEmoji(name)} ${displayName(name)}${name===session.name?' (tú)':''}</span><span>${txt}${ptsTxt}</span></div>`;
           }).join('')}
         </div>
       `;
@@ -781,7 +852,7 @@ function renderTabla(){
   if(board.length && board[0].points>0){
     winnerCont.innerHTML = `
       <div class="winner-stage">
-        <div class="bubble">¡${board[0].name} se lleva los ${PRIZE_AMOUNT}! 🎉</div>
+        <div class="bubble">¡${displayName(board[0].name)} se lleva los ${PRIZE_AMOUNT}! 🎉</div>
         ${stickFigureSVG(board[0].name)}
       </div>`;
   } else {
@@ -793,7 +864,7 @@ function renderTabla(){
     <tr><th>#</th><th class="name">Participante</th><th>Puntos</th><th>Exactos</th></tr>
     ${board.map((p,i)=>`
       <tr class="${i===0 && p.points>0 ?'rank1':''}">
-        <td>${medals[i]||(i+1)}</td><td class="name">${p.name}</td><td>${p.points}</td><td>${p.exact}</td>
+        <td>${medals[i]||(i+1)}</td><td class="name">${avatarEmoji(p.name)} ${displayName(p.name)}</td><td>${p.points}</td><td>${p.exact}</td>
       </tr>`).join('')}
   `;
 }
@@ -833,7 +904,10 @@ function renderAdmin(){
   }).join('');
 
   const resetSelect = document.getElementById('resetPinSelect');
-  resetSelect.innerHTML = participantsCache.map(p=>`<option value="${p.name}">${p.name}</option>`).join('');
+  resetSelect.innerHTML = participantsCache.map(p=>{
+    const label = p.display_name ? `${displayName(p.name)} (${escapeHtml(p.name)})` : escapeHtml(p.name);
+    return `<option value="${escapeHtml(p.name)}">${label}</option>`;
+  }).join('');
 }
 
 async function saveLockTime(matchId){
