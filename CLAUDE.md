@@ -29,6 +29,7 @@ RLS está deshabilitado a propósito (app entre amigos, sin datos sensibles real
 - Todos los usuarios están en zona horaria de Perú (UTC-5) — cuidado con bugs de timezone al mostrar/guardar fechas (ya tuvimos uno, usar hora local del navegador, no `toISOString()`, para poblar inputs `datetime-local`)
 - Las banderas de los equipos se dibujan con CSS (función `flagChip()`), no con emoji — los emoji de bandera no se ven bien en Windows
 - Cada participante puede personalizar su nombre para mostrar y su emoji desde el botón "✏️ Editar perfil" (topbar). La primera vez que entra, se le muestra automáticamente un modal invitándolo a hacerlo, pero puede posponerlo ("Ahora no") y hacerlo después; ese aviso solo se dispara una vez por participante (`profile_prompted`). El nombre/emoji personalizados son texto libre del usuario, así que se escapan (`escapeHtml()`) antes de insertarse en el HTML
+- `avatar_emoji` también acepta una ruta/URL de imagen en vez de un emoji de texto (detectado por `isImageAvatar()`: empieza con `http`, `/` o `data:image`) — se renderiza como `<img class="avatar-img">` del mismo tamaño que el texto (1em). Las imágenes custom viven en `avatars/` (ej. `avatars/marita.png`, agregada a mano por Cesar, no autoservicio); conviene mantenerlas livianas (~200-300px, no el archivo original)
 
 ## Flujo de trabajo
 - Cesar no tiene mucha experiencia con git/terminal, así que hay que dar pasos claros y verificar en qué carpeta está parado antes de correr comandos

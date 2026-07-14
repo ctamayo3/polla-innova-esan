@@ -145,6 +145,7 @@
     font-size:0.9rem;background:white;color:var(--ink);
   }
   select:disabled{background:#eee;color:#999;cursor:not-allowed;}
+  .avatar-img{height:1em;width:1em;object-fit:contain;vertical-align:-0.15em;display:inline-block;}
   label{font-size:0.78rem;font-weight:800;display:block;margin:8px 0 4px;}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;}
   .score-input{width:60px;text-align:center;}
@@ -427,7 +428,12 @@ function escapeHtml(str){
 function rawDisplayName(name){ const p = getParticipant(name); return (p && p.display_name) ? p.display_name : name; }
 function rawAvatarEmoji(name){ const p = getParticipant(name); return p ? (p.avatar_emoji || (p.is_admin?'👑':'🙋')) : '🙋'; }
 function displayName(name){ return escapeHtml(rawDisplayName(name)); }
-function avatarEmoji(name){ return escapeHtml(rawAvatarEmoji(name)); }
+function isImageAvatar(val){ return /^(https?:|\/|data:image)/i.test(val.trim()); }
+function avatarEmoji(name){
+  const raw = rawAvatarEmoji(name);
+  if(isImageAvatar(raw)) return `<img class="avatar-img" src="${escapeHtml(raw)}" alt="">`;
+  return escapeHtml(raw);
+}
 function toLocalInputValue(dateObj){
   const pad = n => String(n).padStart(2,'0');
   return `${dateObj.getFullYear()}-${pad(dateObj.getMonth()+1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
@@ -628,7 +634,7 @@ async function saveProfile(){
   }).eq('name', session.name);
   await loadAll();
   document.getElementById('profileModal').style.display = 'none';
-  document.getElementById('userChip').textContent = rawAvatarEmoji(session.name) + ' ' + rawDisplayName(session.name);
+  document.getElementById('userChip').innerHTML = avatarEmoji(session.name) + ' ' + displayName(session.name);
   renderAll();
   toast('Perfil actualizado ✅');
 }
@@ -637,7 +643,7 @@ async function saveProfile(){
 function showApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').style.display='block';
-  document.getElementById('userChip').textContent = rawAvatarEmoji(session.name) + ' ' + rawDisplayName(session.name);
+  document.getElementById('userChip').innerHTML = avatarEmoji(session.name) + ' ' + displayName(session.name);
   document.getElementById('adminTabBtn').style.display = session.isAdmin ? 'inline-block' : 'none';
   renderAll();
   const p = getParticipant(session.name);
