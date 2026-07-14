@@ -144,6 +144,7 @@
     font-family:'Nunito';font-weight:700;border:2.5px solid var(--ink);border-radius:10px;padding:8px 10px;
     font-size:0.9rem;background:white;color:var(--ink);
   }
+  select:disabled{background:#eee;color:#999;cursor:not-allowed;}
   label{font-size:0.78rem;font-weight:800;display:block;margin:8px 0 4px;}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;}
   .score-input{width:60px;text-align:center;}
@@ -430,6 +431,14 @@ function avatarEmoji(name){ return escapeHtml(rawAvatarEmoji(name)); }
 function toLocalInputValue(dateObj){
   const pad = n => String(n).padStart(2,'0');
   return `${dateObj.getFullYear()}-${pad(dateObj.getMonth()+1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+}
+function updatePenAvailability(prefix, matchId){
+  const home = document.getElementById(prefix+'-home-'+matchId).value;
+  const away = document.getElementById(prefix+'-away-'+matchId).value;
+  const sel = document.getElementById(prefix+'-pen-'+matchId);
+  const isDraw = home!=='' && away!=='' && parseInt(home)===parseInt(away);
+  sel.disabled = !isDraw;
+  if(!isDraw) sel.value = '';
 }
 function isLocked(match){
   if(!match.lock_at) return false; // sin hora definida = abierto
@@ -758,16 +767,17 @@ function renderPartidos(){
 
     if(!locked){
       // abierto: solo yo veo/edito mi predicción
+      const ownIsDraw = own && own.home_score===own.away_score;
       body = `
         <div class="row">
-          <div><label>${m.home_name}</label><input type="number" min="0" class="score-input" id="own-home-${m.id}" value="${own?own.home_score:''}"></div>
-          <div><label>${m.away_name}</label><input type="number" min="0" class="score-input" id="own-away-${m.id}" value="${own?own.away_score:''}"></div>
+          <div><label>${m.home_name}</label><input type="number" min="0" class="score-input" id="own-home-${m.id}" value="${own?own.home_score:''}" oninput="updatePenAvailability('own','${m.id}')"></div>
+          <div><label>${m.away_name}</label><input type="number" min="0" class="score-input" id="own-away-${m.id}" value="${own?own.away_score:''}" oninput="updatePenAvailability('own','${m.id}')"></div>
           <div>
             <label>Si es empate, ¿quién gana penales?</label>
-            <select id="own-pen-${m.id}">
+            <select id="own-pen-${m.id}" ${ownIsDraw?'':'disabled'}>
               <option value="">N/A</option>
-              <option value="home" ${own&&own.penalty_winner==='home'?'selected':''}>${m.home_name}</option>
-              <option value="away" ${own&&own.penalty_winner==='away'?'selected':''}>${m.away_name}</option>
+              <option value="home" ${ownIsDraw&&own.penalty_winner==='home'?'selected':''}>${m.home_name}</option>
+              <option value="away" ${ownIsDraw&&own.penalty_winner==='away'?'selected':''}>${m.away_name}</option>
             </select>
           </div>
         </div>
@@ -815,9 +825,10 @@ async function saveOwnPrediction(matchId){
   const away = document.getElementById('own-away-'+matchId).value;
   const pen = document.getElementById('own-pen-'+matchId).value;
   if(home===''||away===''){ toast('Falta el marcador'); return; }
+  const isDraw = parseInt(home)===parseInt(away);
   await sb.from('predictions').upsert({
     match_id: matchId, participant_name: session.name,
-    home_score: parseInt(home), away_score: parseInt(away), penalty_winner: pen||null,
+    home_score: parseInt(home), away_score: parseInt(away), penalty_winner: isDraw ? (pen||null) : null,
     updated_at: new Date().toISOString()
   }, { onConflict: 'match_id,participant_name' });
   await loadAll();
@@ -875,6 +886,7 @@ function renderAdmin(){
   const cont = document.getElementById('adminMatchesContainer');
   cont.innerHTML = matchesCache.map(m=>{
     const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
+    const resultIsDraw = hasResult && m.result_home_score===m.result_away_score;
     const lockVal = m.lock_at ? toLocalInputValue(new Date(m.lock_at)) : '';
     return `
     <div class="match-card">
@@ -888,14 +900,14 @@ function renderAdmin(){
       `}
       <label style="margin-top:12px;">Resultado real</label>
       <div class="row">
-        <div><label>${m.home_name}</label><input type="number" min="0" class="score-input" id="res-home-${m.id}" value="${hasResult?m.result_home_score:''}"></div>
-        <div><label>${m.away_name}</label><input type="number" min="0" class="score-input" id="res-away-${m.id}" value="${hasResult?m.result_away_score:''}"></div>
+        <div><label>${m.home_name}</label><input type="number" min="0" class="score-input" id="res-home-${m.id}" value="${hasResult?m.result_home_score:''}" oninput="updatePenAvailability('res','${m.id}')"></div>
+        <div><label>${m.away_name}</label><input type="number" min="0" class="score-input" id="res-away-${m.id}" value="${hasResult?m.result_away_score:''}" oninput="updatePenAvailability('res','${m.id}')"></div>
         <div>
           <label>Si empató, ¿quién ganó penales?</label>
-          <select id="res-pen-${m.id}">
+          <select id="res-pen-${m.id}" ${resultIsDraw?'':'disabled'}>
             <option value="">N/A</option>
-            <option value="home" ${m.result_penalty_winner==='home'?'selected':''}>${m.home_name}</option>
-            <option value="away" ${m.result_penalty_winner==='away'?'selected':''}>${m.away_name}</option>
+            <option value="home" ${resultIsDraw&&m.result_penalty_winner==='home'?'selected':''}>${m.home_name}</option>
+            <option value="away" ${resultIsDraw&&m.result_penalty_winner==='away'?'selected':''}>${m.away_name}</option>
           </select>
         </div>
       </div>
@@ -925,11 +937,13 @@ async function saveResult(matchId){
   const away = document.getElementById('res-away-'+matchId).value;
   const pen = document.getElementById('res-pen-'+matchId).value;
   if(home===''||away===''){ toast('Falta el marcador'); return; }
-  if(parseInt(home)===parseInt(away) && !pen){ toast('Es empate: indica quién ganó en penales'); return; }
-  const confirmMsg = `¿Segura/o? Vas a guardar ${m.home_name} ${home} - ${away} ${m.away_name}${pen? ' (penales: '+(pen==='home'?m.home_name:m.away_name)+')':''}.\n\nUna vez guardado, esto quedará como resultado oficial y se calcularán los puntos de todos.`;
+  const isDraw = parseInt(home)===parseInt(away);
+  if(isDraw && !pen){ toast('Es empate: indica quién ganó en penales'); return; }
+  const penFinal = isDraw ? pen : null;
+  const confirmMsg = `¿Segura/o? Vas a guardar ${m.home_name} ${home} - ${away} ${m.away_name}${penFinal? ' (penales: '+(penFinal==='home'?m.home_name:m.away_name)+')':''}.\n\nUna vez guardado, esto quedará como resultado oficial y se calcularán los puntos de todos.`;
   if(!confirm(confirmMsg)) return;
   await sb.from('matches').update({
-    result_home_score: parseInt(home), result_away_score: parseInt(away), result_penalty_winner: pen||null
+    result_home_score: parseInt(home), result_away_score: parseInt(away), result_penalty_winner: penFinal||null
   }).eq('id', matchId);
   await loadAll();
   toast('Resultado guardado, puntos calculados 🎉');
