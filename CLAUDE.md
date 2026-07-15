@@ -11,8 +11,8 @@ App de quiniela/polla de fútbol entre 8 amigos para predecir resultados del Mun
 
 ## Estructura de datos (Supabase)
 - `participants`: los 8 nombres fijos (Cesar, Mariana, Gabriela, Esther, Marilyn, Marita, Kyomi, Kiara), con `pin_hash` (login sin contraseña, PIN de 4 dígitos) y `is_admin`. `name` es la clave estable (liga predicciones, PIN, admin) y nunca se edita desde la UI. `display_name`, `avatar_emoji` y `profile_prompted` son personalización opcional: cada participante puede poner un nombre para mostrar y un emoji libre desde "Editar perfil"; se muestran en vez de `name`/👑🙋 en toda la UI, pero `name` sigue siendo el identificador real por debajo.
-- `matches`: 7 partidos (`ref1` referencia sin puntuar + `qf2/qf3/qf4` cuartos + `sf1/sf2` semis + `final`), con `lock_at` (hora de cierre de predicciones, hora Perú), `result_home_score/away_score/penalty_winner`
-- `predictions`: una fila por participante+partido, con `home_score`, `away_score`, `penalty_winner`
+- `matches`: 7 partidos (`ref1` referencia sin puntuar + `qf2/qf3/qf4` cuartos + `sf1/sf2` semis + `final`), con `lock_at` (hora de cierre de predicciones, hora Perú), `result_home_score/away_score/penalty_winner`, y `result_corners/result_cards/result_red_card` (booleanos, resultado real de las preguntas extra — no aplican a `ref1`)
+- `predictions`: una fila por participante+partido, con `home_score`, `away_score`, `penalty_winner`, y `pred_corners/pred_cards/pred_red_card` (booleanos nullable, respuestas opcionales a las preguntas extra)
 
 RLS está deshabilitado a propósito (app entre amigos, sin datos sensibles reales). El PIN protege el acceso solo a nivel de interfaz, no es seguridad real.
 
@@ -20,6 +20,7 @@ RLS está deshabilitado a propósito (app entre amigos, sin datos sensibles real
 - Marcador exacto (tiempo regular): 3 pts
 - Solo acertar ganador/empate: 1 pt
 - Bonus si acierta quién gana en penales (cuando hubo empate): +1 pt
+- Extras opcionales, +1 pt cada uno si acierta (independientes entre sí, hasta +3 por partido): ¿8+ córners?, ¿4+ tarjetas amarillas?, ¿hubo tarjeta roja? — todo en formato Sí/No fijo (sin línea configurable), solo disponibles en los partidos que faltan por jugar cuando se agregó la función (sf1, sf2, final); no se agregaron a los cuartos ya jugados
 - Desempate final: gana quien tenga más "resultados exactos" acertados
 
 ## Reglas de negocio importantes

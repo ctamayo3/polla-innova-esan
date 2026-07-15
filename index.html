@@ -360,6 +360,9 @@
         <div class="pt-line"><div class="pt-num">3</div><p><b>Resultado exacto:</b> acertaste el marcador tal cual quedó el partido en el tiempo regular (ej. predijiste 2-1 y quedó 2-1).</p></div>
         <div class="pt-line"><div class="pt-num">1</div><p><b>Acertaste quién gana</b> (o que iba a empate en el tiempo regular), pero no el marcador exacto.</p></div>
         <div class="pt-line"><div class="pt-num">+1</div><p><b>Bonus penales:</b> si predijiste empate y además acertaste quién gana en la tanda de penales.</p></div>
+        <div class="pt-line"><div class="pt-num">+1</div><p><b>Bonus córners:</b> acertaste si hubo 8 o más tiros de esquina (opcional).</p></div>
+        <div class="pt-line"><div class="pt-num">+1</div><p><b>Bonus tarjetas:</b> acertaste si hubo 4 o más tarjetas amarillas (opcional).</p></div>
+        <div class="pt-line"><div class="pt-num">+1</div><p><b>Bonus tarjeta roja:</b> acertaste si hubo o no tarjeta roja (opcional).</p></div>
         <p>Al final del Mundial, gana quien tenga <b>más puntos en total</b>. Si hay empate en puntos, gana quien haya acertado <b>más resultados exactos</b>.</p>
         <p class="small-muted">Tus predicciones quedan ocultas para los demás hasta que se cierre la admisión de ese partido (justo cuando empieza). Después de eso, se hacen públicas para todos.</p>
       </div>
@@ -437,6 +440,17 @@ function avatarEmoji(name){
 function toLocalInputValue(dateObj){
   const pad = n => String(n).padStart(2,'0');
   return `${dateObj.getFullYear()}-${pad(dateObj.getMonth()+1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+}
+function yesNoSelect(id, currentVal, placeholder){
+  return `<select id="${id}">
+    <option value="">${placeholder||'Sin predicción'}</option>
+    <option value="yes" ${currentVal===true?'selected':''}>Sí</option>
+    <option value="no" ${currentVal===false?'selected':''}>No</option>
+  </select>`;
+}
+function selectBool(id){
+  const v = document.getElementById(id).value;
+  return v==='yes' ? true : (v==='no' ? false : null);
 }
 function updatePenAvailability(prefix, matchId){
   const home = document.getElementById(prefix+'-home-'+matchId).value;
@@ -678,6 +692,15 @@ function computeMatchPoints(match){
       if(match.result_penalty_winner && pred.penalty_winner && pred.home_score===pred.away_score && match.result_home_score===match.result_away_score){
         if(pred.penalty_winner === match.result_penalty_winner) points += 1;
       }
+      if(match.result_corners!==null && match.result_corners!==undefined && pred.pred_corners!==null && pred.pred_corners!==undefined){
+        if(pred.pred_corners === match.result_corners) points += 1;
+      }
+      if(match.result_cards!==null && match.result_cards!==undefined && pred.pred_cards!==null && pred.pred_cards!==undefined){
+        if(pred.pred_cards === match.result_cards) points += 1;
+      }
+      if(match.result_red_card!==null && match.result_red_card!==undefined && pred.pred_red_card!==null && pred.pred_red_card!==undefined){
+        if(pred.pred_red_card === match.result_red_card) points += 1;
+      }
     }
     pts[p] = {points, exact};
   });
@@ -787,6 +810,13 @@ function renderPartidos(){
             </select>
           </div>
         </div>
+        <div class="ticket-divider"></div>
+        <div class="small-muted" style="margin-bottom:6px;">Extra (opcional, +1 pt cada una si aciertas):</div>
+        <div class="row">
+          <div><label>¿8 o más córners?</label>${yesNoSelect('own-corners-'+m.id, own?own.pred_corners:null)}</div>
+          <div><label>¿4 o más amarillas?</label>${yesNoSelect('own-cards-'+m.id, own?own.pred_cards:null)}</div>
+          <div><label>¿Tarjeta roja?</label>${yesNoSelect('own-red-'+m.id, own?own.pred_red_card:null)}</div>
+        </div>
         <button class="btn small" onclick="saveOwnPrediction('${m.id}')">💾 Guardar mi predicción</button>
         <div class="hidden-note">🔒 Tu predicción está oculta para los demás hasta que se cierre este partido.</div>
       `;
@@ -797,7 +827,8 @@ function renderPartidos(){
         <div class="others-pred">
           ${participantsCache.map(({name})=>{
             const pr = predFor(m.id, name);
-            const txt = pr ? `${pr.home_score}-${pr.away_score}${pr.penalty_winner?' (pen: '+(pr.penalty_winner==='home'?m.home_name:m.away_name)+')':''}` : 'sin predicción';
+            const boolTxt = v => v===true ? 'Sí' : (v===false ? 'No' : '—');
+            const txt = pr ? `${pr.home_score}-${pr.away_score}${pr.penalty_winner?' (pen: '+(pr.penalty_winner==='home'?m.home_name:m.away_name)+')':''} · córners: ${boolTxt(pr.pred_corners)} · amarillas: ${boolTxt(pr.pred_cards)} · roja: ${boolTxt(pr.pred_red_card)}` : 'sin predicción';
             const ptsTxt = hasResult && mp[name] ? ` · ${mp[name].points} pts` : '';
             return `<div class="op-row"><span>${avatarEmoji(name)} ${displayName(name)}${name===session.name?' (tú)':''}</span><span>${txt}${ptsTxt}</span></div>`;
           }).join('')}
@@ -835,6 +866,9 @@ async function saveOwnPrediction(matchId){
   await sb.from('predictions').upsert({
     match_id: matchId, participant_name: session.name,
     home_score: parseInt(home), away_score: parseInt(away), penalty_winner: isDraw ? (pen||null) : null,
+    pred_corners: selectBool('own-corners-'+matchId),
+    pred_cards: selectBool('own-cards-'+matchId),
+    pred_red_card: selectBool('own-red-'+matchId),
     updated_at: new Date().toISOString()
   }, { onConflict: 'match_id,participant_name' });
   await loadAll();
@@ -917,6 +951,14 @@ function renderAdmin(){
           </select>
         </div>
       </div>
+      ${m.is_reference ? '' : `
+      <label style="margin-top:12px;">Estadísticas extra (opcional, +1 pt c/u)</label>
+      <div class="row">
+        <div><label>¿8+ córners?</label>${yesNoSelect('res-corners-'+m.id, m.result_corners, 'Sin dato')}</div>
+        <div><label>¿4+ amarillas?</label>${yesNoSelect('res-cards-'+m.id, m.result_cards, 'Sin dato')}</div>
+        <div><label>¿Tarjeta roja?</label>${yesNoSelect('res-red-'+m.id, m.result_red_card, 'Sin dato')}</div>
+      </div>
+      `}
       <button class="btn warn small" onclick="saveResult('${m.id}')">✅ Guardar resultado</button>
     </div>`;
   }).join('');
@@ -948,9 +990,15 @@ async function saveResult(matchId){
   const penFinal = isDraw ? pen : null;
   const confirmMsg = `¿Segura/o? Vas a guardar ${m.home_name} ${home} - ${away} ${m.away_name}${penFinal? ' (penales: '+(penFinal==='home'?m.home_name:m.away_name)+')':''}.\n\nUna vez guardado, esto quedará como resultado oficial y se calcularán los puntos de todos.`;
   if(!confirm(confirmMsg)) return;
-  await sb.from('matches').update({
+  const update = {
     result_home_score: parseInt(home), result_away_score: parseInt(away), result_penalty_winner: penFinal||null
-  }).eq('id', matchId);
+  };
+  if(!m.is_reference){
+    update.result_corners = selectBool('res-corners-'+matchId);
+    update.result_cards = selectBool('res-cards-'+matchId);
+    update.result_red_card = selectBool('res-red-'+matchId);
+  }
+  await sb.from('matches').update(update).eq('id', matchId);
   await loadAll();
   toast('Resultado guardado, puntos calculados 🎉');
   renderAll();
