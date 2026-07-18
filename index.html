@@ -98,6 +98,7 @@
   .pill.ref{background:#ddd;}
   .pill.abierto{background:var(--sky);}
   .pill.cerrado{background:#333;color:white;}
+  .pill.cancelado{background:#999;color:white;}
 
   .leader-banner{display:flex;align-items:center;gap:12px;background:var(--sky);border:3px solid var(--ink);border-radius:16px;padding:14px;box-shadow:var(--shadow);margin-bottom:16px;}
   .leader-banner .trophy{font-size:2.2rem;}
@@ -113,6 +114,7 @@
   .match-card.status-cerrado{border-left-color:#4a4a4a; background:#F1F1EF;}
   .match-card.status-finalizado{border-left-color:var(--grass); background:#EEFAF0;}
   .match-card.status-ref{border-left-color:#bbb; background:#F7F7F4;}
+  .match-card.status-cancelado{border-left-color:#999; background:#F2F2F2; opacity:0.75;}
   .match-card.is-next{
     box-shadow: 0 0 0 3px var(--sun), var(--shadow);
     animation: nextGlow 1.8s ease-in-out infinite;
@@ -491,13 +493,14 @@ function flagChip(name){
   return `<span class="flag-chip" style="background:linear-gradient(${dir}, ${stops});">${mark}</span>`;
 }
 function matchStatus(m){
+  if(m.cancelled) return 'cancelado';
   const hasResult = m.result_home_score!==null && m.result_home_score!==undefined;
   if(m.is_reference) return hasResult ? 'finalizado' : 'ref';
   if(hasResult) return 'finalizado';
   if(isLocked(m)) return 'cerrado';
   return 'abierto';
 }
-const STATUS_LABEL = {ref:'Referencia', finalizado:'Finalizado', cerrado:'Cerrado', abierto:'Abierto'};
+const STATUS_LABEL = {ref:'Referencia', finalizado:'Finalizado', cerrado:'Cerrado', abierto:'Abierto', cancelado:'Cancelado'};
 function getNextMatchId(){
   const upcoming = matchesCache
     .filter(m=> m.scores_flag && !m.is_reference && m.lock_at && matchStatus(m)==='abierto')
@@ -778,6 +781,7 @@ function renderBracket(){
           </div>
           <div class="ticket-divider"></div>
           <div class="match-date">${m.match_label||''}</div>
+          ${m.cancelled ? `<div class="notice" style="margin:8px 0 0;">❌ <b>Cancelado</b> por anuncio de último momento — no cuenta para puntos ni tabla.</div>` : ''}
         </div>`;
       }).join('')}
     </div>`;
