@@ -1,7 +1,7 @@
 # Polla Innova ESAN
 
 App de quiniela/polla de fútbol entre 8 amigos para predecir resultados del Mundial 2026
-(Cuartos de Final, Semifinales y Final). Cesar es el admin y también participa.
+(Cuartos de Final, Semifinales, Tercer Lugar y Final). Cesar es el admin y también participa.
 
 ## Stack técnico
 - **Frontend:** un solo archivo `index.html` con HTML + CSS + JS vanilla (sin frameworks, sin build step)
@@ -11,7 +11,7 @@ App de quiniela/polla de fútbol entre 8 amigos para predecir resultados del Mun
 
 ## Estructura de datos (Supabase)
 - `participants`: los 8 nombres fijos (Cesar, Mariana, Gabriela, Esther, Marilyn, Marita, Kyomi, Kiara), con `pin_hash` (login sin contraseña, PIN de 4 dígitos) y `is_admin`. `name` es la clave estable (liga predicciones, PIN, admin) y nunca se edita desde la UI. `display_name`, `avatar_emoji` y `profile_prompted` son personalización opcional: cada participante puede poner un nombre para mostrar y un emoji libre desde "Editar perfil"; se muestran en vez de `name`/👑🙋 en toda la UI, pero `name` sigue siendo el identificador real por debajo.
-- `matches`: 7 partidos (`ref1` referencia sin puntuar + `qf2/qf3/qf4` cuartos + `sf1/sf2` semis + `final`), con `lock_at` (hora de cierre de predicciones, hora Perú), `result_home_score/away_score/penalty_winner`, y `result_corners/result_cards/result_red_card` (booleanos, resultado real de las preguntas extra — no aplican a `ref1`)
+- `matches`: 8 partidos (`ref1` referencia sin puntuar + `qf2/qf3/qf4` cuartos + `sf1/sf2` semis + `third` tercer lugar + `final`), con `lock_at` (hora de cierre de predicciones, hora Perú), `result_home_score/away_score/penalty_winner`, y `result_corners/result_cards/result_red_card` (booleanos, resultado real de las preguntas extra — no aplican a `ref1`)
 - `predictions`: una fila por participante+partido, con `home_score`, `away_score`, `penalty_winner`, y `pred_corners/pred_cards/pred_red_card` (booleanos nullable, respuestas opcionales a las preguntas extra)
 
 RLS está deshabilitado a propósito (app entre amigos, sin datos sensibles reales). El PIN protege el acceso solo a nivel de interfaz, no es seguridad real.

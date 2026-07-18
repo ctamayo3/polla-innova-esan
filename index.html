@@ -518,7 +518,7 @@ async function loadAll(){
   participantsCache = partsRes.data || [];
   matchesCache = matchesRes.data || [];
   predictionsCache = predsRes.data || [];
-  const stageOrder = {"Referencia":0,"Cuartos de Final":1,"Semifinal":2,"Final":3};
+  const stageOrder = {"Referencia":0,"Cuartos de Final":1,"Semifinal":2,"Tercer Lugar":3,"Final":4};
   matchesCache.sort((a,b)=> (stageOrder[a.stage]-stageOrder[b.stage]));
 }
 
@@ -757,7 +757,7 @@ function renderBracket(){
     </div>`;
 
   const nextId = getNextMatchId();
-  const stages = ["Referencia","Cuartos de Final","Semifinal","Final"];
+  const stages = ["Referencia","Cuartos de Final","Semifinal","Tercer Lugar","Final"];
   const cont = document.getElementById('bracketContainer');
   cont.innerHTML = stages.map(stage=>{
     const ms = matchesCache.filter(m=>m.stage===stage);
