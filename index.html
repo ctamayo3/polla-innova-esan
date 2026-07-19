@@ -149,6 +149,22 @@
   select:disabled{background:#eee;color:#999;cursor:not-allowed;}
   .avatar-img{height:1.4em;width:1.4em;object-fit:contain;vertical-align:-0.35em;display:inline-block;}
   label{font-size:0.78rem;font-weight:800;display:block;margin:8px 0 4px;}
+  .info-icon{
+    display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;
+    border-radius:50%;background:var(--sky);color:white;font-size:0.68rem;font-weight:800;
+    cursor:pointer;margin-left:4px;vertical-align:middle;border:1.5px solid var(--ink);
+  }
+  .penalty-badge{
+    display:inline-block;font-size:0.65rem;font-weight:800;background:var(--coral);color:white;
+    border-radius:8px;padding:1px 7px;margin-left:6px;vertical-align:middle;
+  }
+  .noPenalty-badge{
+    display:inline-block;font-size:0.65rem;font-weight:800;background:#ddd;color:#444;
+    border-radius:8px;padding:1px 7px;margin-left:6px;vertical-align:middle;
+  }
+  .extra-block{border:2px solid #eee;border-radius:12px;padding:10px;margin-top:10px;}
+  .extra-block.risky{border-color:var(--coral);background:#FFF8F7;}
+  .extra-block-title{font-family:'Baloo 2';font-size:0.85rem;margin-bottom:6px;}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;}
   .score-input{width:60px;text-align:center;}
 
@@ -366,6 +382,9 @@
         <div class="pt-line"><div class="pt-num">+1</div><p><b>Bonus tarjetas:</b> acertaste si hubo 4 o más tarjetas amarillas (opcional).</p></div>
         <div class="pt-line"><div class="pt-num">+1</div><p><b>Bonus tarjeta roja:</b> acertaste si hubo o no tarjeta roja (opcional).</p></div>
         <p>Al final del Mundial, gana quien tenga <b>más puntos en total</b>. Si hay empate en puntos, gana quien haya acertado <b>más resultados exactos</b>.</p>
+        <h3 style="margin-top:16px;">⚡ Solo en la Final</h3>
+        <div class="pt-line"><div class="pt-num">+1</div><p><b>Rango de córners</b> y <b>rango de tarjetas amarillas:</b> acertaste el rango exacto del total del partido (opcional, sin castigo si fallas).</p></div>
+        <div class="pt-line" style="background:#FFF0EE;border-color:var(--coral);"><div class="pt-num" style="background:var(--coral);color:white;">±</div><p><b>Tarjeta roja, gol en el primer tiempo, y quién anota primero:</b> +1 si aciertas, <b>-0.5 si fallas</b> (opcional — si no respondes, no ganas ni pierdes nada). Busca el ⓘ junto a cada opción para ver el detalle.</p></div>
         <p class="small-muted">Tus predicciones quedan ocultas para los demás hasta que se cierre la admisión de ese partido (justo cuando empieza). Después de eso, se hacen públicas para todos.</p>
       </div>
     </section>
@@ -453,6 +472,40 @@ function yesNoSelect(id, currentVal, placeholder){
 function selectBool(id){
   const v = document.getElementById(id).value;
   return v==='yes' ? true : (v==='no' ? false : null);
+}
+function selectStr(id){
+  const v = document.getElementById(id).value;
+  return v==='' ? null : v;
+}
+function selectInt(id){
+  const v = document.getElementById(id).value;
+  return v==='' ? null : parseInt(v);
+}
+function infoIcon(text){
+  return `<span class="info-icon" data-info="${escapeHtml(text)}" onclick="alert(this.dataset.info)">ⓘ</span>`;
+}
+const CORNER_RANGES = [
+  {v:1,label:'1 a 3'}, {v:2,label:'4 a 6'}, {v:3,label:'7 a 9'}, {v:4,label:'10 a 12'},
+  {v:5,label:'13 a 15'}, {v:6,label:'16 a 18'}, {v:7,label:'19 o más'}
+];
+const CARD_RANGES = [
+  {v:1,label:'1 a 2'}, {v:2,label:'3 a 4'}, {v:3,label:'5 a 6'}, {v:4,label:'7 a 8'},
+  {v:5,label:'9 a 10'}, {v:6,label:'11 o más'}
+];
+function rangeLabel(ranges, v){ const r = ranges.find(x=>x.v===v); return r ? r.label : '—'; }
+function rangeSelect(id, ranges, currentVal, placeholder){
+  return `<select id="${id}">
+    <option value="">${placeholder||'Sin predicción'}</option>
+    ${ranges.map(r=>`<option value="${r.v}" ${currentVal===r.v?'selected':''}>${r.label}</option>`).join('')}
+  </select>`;
+}
+function firstScorerSelect(id, homeName, awayName, currentVal, placeholder){
+  return `<select id="${id}">
+    <option value="">${placeholder||'Sin predicción'}</option>
+    <option value="home" ${currentVal==='home'?'selected':''}>${escapeHtml(homeName)}</option>
+    <option value="away" ${currentVal==='away'?'selected':''}>${escapeHtml(awayName)}</option>
+    <option value="none" ${currentVal==='none'?'selected':''}>Nadie (0-0)</option>
+  </select>`;
 }
 function updatePenAvailability(prefix, matchId){
   const home = document.getElementById(prefix+'-home-'+matchId).value;
@@ -695,14 +748,32 @@ function computeMatchPoints(match){
       if(match.result_penalty_winner && pred.penalty_winner && pred.home_score===pred.away_score && match.result_home_score===match.result_away_score){
         if(pred.penalty_winner === match.result_penalty_winner) points += 1;
       }
-      if(match.result_corners!==null && match.result_corners!==undefined && pred.pred_corners!==null && pred.pred_corners!==undefined){
-        if(pred.pred_corners === match.result_corners) points += 1;
-      }
-      if(match.result_cards!==null && match.result_cards!==undefined && pred.pred_cards!==null && pred.pred_cards!==undefined){
-        if(pred.pred_cards === match.result_cards) points += 1;
+      if(match.extended_predictions){
+        if(match.result_corners_range!=null && pred.pred_corners_range!=null){
+          if(pred.pred_corners_range === match.result_corners_range) points += 1;
+        }
+        if(match.result_cards_range!=null && pred.pred_cards_range!=null){
+          if(pred.pred_cards_range === match.result_cards_range) points += 1;
+        }
+      } else {
+        if(match.result_corners!==null && match.result_corners!==undefined && pred.pred_corners!==null && pred.pred_corners!==undefined){
+          if(pred.pred_corners === match.result_corners) points += 1;
+        }
+        if(match.result_cards!==null && match.result_cards!==undefined && pred.pred_cards!==null && pred.pred_cards!==undefined){
+          if(pred.pred_cards === match.result_cards) points += 1;
+        }
       }
       if(match.result_red_card!==null && match.result_red_card!==undefined && pred.pred_red_card!==null && pred.pred_red_card!==undefined){
         if(pred.pred_red_card === match.result_red_card) points += 1;
+        else if(match.extended_predictions) points -= 0.5;
+      }
+      if(match.result_first_half_goal!=null && pred.pred_first_half_goal!=null){
+        if(pred.pred_first_half_goal === match.result_first_half_goal) points += 1;
+        else points -= 0.5;
+      }
+      if(match.result_first_scorer!=null && pred.pred_first_scorer!=null){
+        if(pred.pred_first_scorer === match.result_first_scorer) points += 1;
+        else points -= 0.5;
       }
     }
     pts[p] = {points, exact};
@@ -814,6 +885,24 @@ function renderPartidos(){
             </select>
           </div>
         </div>
+        ${m.extended_predictions ? `
+        <div class="ticket-divider"></div>
+        <div class="extra-block">
+          <div class="extra-block-title">🎯 Extra sin castigo (opcional, +1 pt si aciertas)</div>
+          <div class="row">
+            <div><label>Rango de córners${infoIcon('Elige en qué rango caerá el total de tiros de esquina del partido. +1 punto si aciertas el rango exacto. Si fallas, no ganas ni pierdes nada. Si no respondes, tampoco pasa nada.')}</label>${rangeSelect('own-corners-range-'+m.id, CORNER_RANGES, own?own.pred_corners_range:null)}</div>
+            <div><label>Rango de amarillas${infoIcon('Elige en qué rango caerá el total de tarjetas amarillas del partido. +1 punto si aciertas el rango exacto. Si fallas, no ganas ni pierdes nada. Si no respondes, tampoco pasa nada.')}</label>${rangeSelect('own-cards-range-'+m.id, CARD_RANGES, own?own.pred_cards_range:null)}</div>
+          </div>
+        </div>
+        <div class="extra-block risky">
+          <div class="extra-block-title">⚠️ Extra con castigo (opcional, +1 si aciertas, -0.5 si fallas)</div>
+          <div class="row">
+            <div><label>¿Tarjeta roja?${infoIcon('¿Habrá al menos una tarjeta roja en el partido? +1 punto si aciertas. -0.5 puntos si respondes y fallas. Si no respondes, no ganas ni pierdes nada.')}</label>${yesNoSelect('own-red-'+m.id, own?own.pred_red_card:null)}</div>
+            <div><label>¿Gol en 1er tiempo?${infoIcon('¿Habrá al menos un gol en el primer tiempo (antes del entretiempo)? +1 punto si aciertas. -0.5 puntos si respondes y fallas. Si no respondes, no ganas ni pierdes nada.')}</label>${yesNoSelect('own-fhg-'+m.id, own?own.pred_first_half_goal:null)}</div>
+            <div><label>¿Quién anota primero?${infoIcon('¿Qué equipo mete el primer gol del partido? Elige "Nadie" si crees que va a terminar 0-0. +1 punto si aciertas. -0.5 puntos si respondes y fallas. Si no respondes, no ganas ni pierdes nada.')}</label>${firstScorerSelect('own-fscorer-'+m.id, m.home_name, m.away_name, own?own.pred_first_scorer:null)}</div>
+          </div>
+        </div>
+        ` : `
         <div class="ticket-divider"></div>
         <div class="small-muted" style="margin-bottom:6px;">Extra (opcional, +1 pt cada una si aciertas):</div>
         <div class="row">
@@ -821,18 +910,28 @@ function renderPartidos(){
           <div><label>¿4 o más amarillas?</label>${yesNoSelect('own-cards-'+m.id, own?own.pred_cards:null)}</div>
           <div><label>¿Tarjeta roja?</label>${yesNoSelect('own-red-'+m.id, own?own.pred_red_card:null)}</div>
         </div>
+        `}
         <button class="btn small" onclick="saveOwnPrediction('${m.id}')">💾 Guardar mi predicción</button>
         <div class="hidden-note">🔒 Tu predicción está oculta para los demás hasta que se cierre este partido.</div>
       `;
     } else {
       // cerrado: se revelan todas las predicciones
       const mp = hasResult ? computeMatchPoints(m) : {};
+      const boolTxt = v => v===true ? 'Sí' : (v===false ? 'No' : '—');
       body = `
         <div class="others-pred">
           ${participantsCache.map(({name})=>{
             const pr = predFor(m.id, name);
-            const boolTxt = v => v===true ? 'Sí' : (v===false ? 'No' : '—');
-            const txt = pr ? `${pr.home_score}-${pr.away_score}${pr.penalty_winner?' (pen: '+(pr.penalty_winner==='home'?m.home_name:m.away_name)+')':''} · córners: ${boolTxt(pr.pred_corners)} · amarillas: ${boolTxt(pr.pred_cards)} · roja: ${boolTxt(pr.pred_red_card)}` : 'sin predicción';
+            let txt = 'sin predicción';
+            if(pr){
+              txt = `${pr.home_score}-${pr.away_score}${pr.penalty_winner?' (pen: '+(pr.penalty_winner==='home'?m.home_name:m.away_name)+')':''}`;
+              if(m.extended_predictions){
+                const scorerTxt = pr.pred_first_scorer==='home'?m.home_name:(pr.pred_first_scorer==='away'?m.away_name:(pr.pred_first_scorer==='none'?'Nadie':'—'));
+                txt += ` · córners: ${pr.pred_corners_range!=null?rangeLabel(CORNER_RANGES,pr.pred_corners_range):'—'} · amarillas: ${pr.pred_cards_range!=null?rangeLabel(CARD_RANGES,pr.pred_cards_range):'—'} · roja: ${boolTxt(pr.pred_red_card)} · gol 1T: ${boolTxt(pr.pred_first_half_goal)} · anota primero: ${scorerTxt}`;
+              } else {
+                txt += ` · córners: ${boolTxt(pr.pred_corners)} · amarillas: ${boolTxt(pr.pred_cards)} · roja: ${boolTxt(pr.pred_red_card)}`;
+              }
+            }
             const ptsTxt = hasResult && mp[name] ? ` · ${mp[name].points} pts` : '';
             return `<div class="op-row"><span>${avatarEmoji(name)} ${displayName(name)}${name===session.name?' (tú)':''}</span><span>${txt}${ptsTxt}</span></div>`;
           }).join('')}
@@ -862,19 +961,28 @@ function renderPartidos(){
 }
 
 async function saveOwnPrediction(matchId){
+  const m = getMatch(matchId);
   const home = document.getElementById('own-home-'+matchId).value;
   const away = document.getElementById('own-away-'+matchId).value;
   const pen = document.getElementById('own-pen-'+matchId).value;
   if(home===''||away===''){ toast('Falta el marcador'); return; }
   const isDraw = parseInt(home)===parseInt(away);
-  await sb.from('predictions').upsert({
+  const payload = {
     match_id: matchId, participant_name: session.name,
     home_score: parseInt(home), away_score: parseInt(away), penalty_winner: isDraw ? (pen||null) : null,
-    pred_corners: selectBool('own-corners-'+matchId),
-    pred_cards: selectBool('own-cards-'+matchId),
     pred_red_card: selectBool('own-red-'+matchId),
     updated_at: new Date().toISOString()
-  }, { onConflict: 'match_id,participant_name' });
+  };
+  if(m.extended_predictions){
+    payload.pred_corners_range = selectInt('own-corners-range-'+matchId);
+    payload.pred_cards_range = selectInt('own-cards-range-'+matchId);
+    payload.pred_first_half_goal = selectBool('own-fhg-'+matchId);
+    payload.pred_first_scorer = selectStr('own-fscorer-'+matchId);
+  } else {
+    payload.pred_corners = selectBool('own-corners-'+matchId);
+    payload.pred_cards = selectBool('own-cards-'+matchId);
+  }
+  await sb.from('predictions').upsert(payload, { onConflict: 'match_id,participant_name' });
   await loadAll();
   toast('Predicción guardada ✅');
   renderAll();
@@ -955,14 +1063,23 @@ function renderAdmin(){
           </select>
         </div>
       </div>
-      ${m.is_reference ? '' : `
+      ${m.is_reference ? '' : (m.extended_predictions ? `
+      <label style="margin-top:12px;">Estadísticas extra — Final (opcional, +1 pt c/u; roja/gol 1T/anota primero restan -0.5 si fallan)</label>
+      <div class="row">
+        <div><label>Rango de córners</label>${rangeSelect('res-corners-range-'+m.id, CORNER_RANGES, m.result_corners_range, 'Sin dato')}</div>
+        <div><label>Rango de amarillas</label>${rangeSelect('res-cards-range-'+m.id, CARD_RANGES, m.result_cards_range, 'Sin dato')}</div>
+        <div><label>¿Tarjeta roja?</label>${yesNoSelect('res-red-'+m.id, m.result_red_card, 'Sin dato')}</div>
+        <div><label>¿Gol en 1er tiempo?</label>${yesNoSelect('res-fhg-'+m.id, m.result_first_half_goal, 'Sin dato')}</div>
+        <div><label>¿Quién anotó primero?</label>${firstScorerSelect('res-fscorer-'+m.id, m.home_name, m.away_name, m.result_first_scorer, 'Sin dato')}</div>
+      </div>
+      ` : `
       <label style="margin-top:12px;">Estadísticas extra (opcional, +1 pt c/u)</label>
       <div class="row">
         <div><label>¿8+ córners?</label>${yesNoSelect('res-corners-'+m.id, m.result_corners, 'Sin dato')}</div>
         <div><label>¿4+ amarillas?</label>${yesNoSelect('res-cards-'+m.id, m.result_cards, 'Sin dato')}</div>
         <div><label>¿Tarjeta roja?</label>${yesNoSelect('res-red-'+m.id, m.result_red_card, 'Sin dato')}</div>
       </div>
-      `}
+      `)}
       <button class="btn warn small" onclick="saveResult('${m.id}')">✅ Guardar resultado</button>
     </div>`;
   }).join('');
@@ -998,9 +1115,16 @@ async function saveResult(matchId){
     result_home_score: parseInt(home), result_away_score: parseInt(away), result_penalty_winner: penFinal||null
   };
   if(!m.is_reference){
-    update.result_corners = selectBool('res-corners-'+matchId);
-    update.result_cards = selectBool('res-cards-'+matchId);
     update.result_red_card = selectBool('res-red-'+matchId);
+    if(m.extended_predictions){
+      update.result_corners_range = selectInt('res-corners-range-'+matchId);
+      update.result_cards_range = selectInt('res-cards-range-'+matchId);
+      update.result_first_half_goal = selectBool('res-fhg-'+matchId);
+      update.result_first_scorer = selectStr('res-fscorer-'+matchId);
+    } else {
+      update.result_corners = selectBool('res-corners-'+matchId);
+      update.result_cards = selectBool('res-cards-'+matchId);
+    }
   }
   await sb.from('matches').update(update).eq('id', matchId);
   await loadAll();
